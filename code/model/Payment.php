@@ -251,7 +251,10 @@ final class Payment extends DataObject{
 			'returnUrl' => PaymentGatewayController::get_return_url($message, 'complete', $this->returnurl),
 			'cancelUrl' => PaymentGatewayController::get_return_url($message,'cancel', $this->cancelurl)
 		);
-		if ($this->Gateway == 'PayPal_Express') $parameters['landingpage'] = 'login'; 
+		if ($this->Gateway == 'PayPal_Express') {
+			$parameters['noshipping'] = '1';	
+			$parameters['landingpage'] = 'login';	
+		}
 		$request = $this->oGateway()->purchase($parameters);
 		$this->logToFile($request->getParameters());
 		
