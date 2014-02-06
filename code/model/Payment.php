@@ -242,7 +242,7 @@ final class Payment extends DataObject{
 		$this->returnurl = isset($data['returnUrl']) ? $data['returnUrl'] : $this->returnurl;
 		$this->cancelurl = isset($data['cancelUrl']) ? $data['cancelUrl'] : $this->cancelurl;
 		$message = $this->createMessage('PurchaseRequest');
-		$request = $this->oGateway()->purchase(array(
+		$parameters = array(
 			'card' => new CreditCard($data),
 			'amount' => (float)$this->MoneyAmount,
 			'currency' => $this->MoneyCurrency,
@@ -250,7 +250,9 @@ final class Payment extends DataObject{
 			'clientIp' => isset($data['clientIp']) ? $data['clientIp'] : null,
 			'returnUrl' => PaymentGatewayController::get_return_url($message, 'complete', $this->returnurl),
 			'cancelUrl' => PaymentGatewayController::get_return_url($message,'cancel', $this->cancelurl)
-		));
+		);
+		if ($this->Gateway == 'PayPal_Express') $parameters['landingpage'] = 'login'; 
+		$request = $this->oGateway()->purchase($parameters);
 		$this->logToFile($request->getParameters());
 		
 		$gatewayresponse = new GatewayResponse($this);
