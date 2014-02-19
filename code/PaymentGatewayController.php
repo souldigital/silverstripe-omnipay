@@ -59,7 +59,8 @@ final class PaymentGatewayController extends Controller{
 				$response = $payment->completePurchase();
 				break;
 			case "cancel":
-				$response = $payment->void();
+				//$response = $payment->void();
+				return $this->redirect('/checkout');
 				break;
 		}
 		
