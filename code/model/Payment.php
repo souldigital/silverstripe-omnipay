@@ -253,7 +253,8 @@ final class Payment extends DataObject{
 		);
 		if ($this->Gateway == 'PayPal_Express') {
 			$parameters['noshipping'] = '1';	
-			$parameters['landingpage'] = 'login';	
+			$parameters['landingpage'] = 'Login';
+			unset($parameters['card']);
 		}
 		$request = $this->oGateway()->purchase($parameters);
 		$this->logToFile($request->getParameters());
