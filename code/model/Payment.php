@@ -246,7 +246,7 @@ final class Payment extends DataObject{
 			'card' => new CreditCard($data),
 			'amount' => (float)$this->MoneyAmount,
 			'currency' => $this->MoneyCurrency,
-			'transactionId' => $message->Identifier,
+			'transactionId' => empty($data['transactionId']) ? $message->Identifier : $data['transactionId'],
 			'clientIp' => isset($data['clientIp']) ? $data['clientIp'] : null,
 			'returnUrl' => PaymentGatewayController::get_return_url($message, 'complete', $this->returnurl),
 			'cancelUrl' => PaymentGatewayController::get_return_url($message,'cancel', $this->cancelurl)
