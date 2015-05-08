@@ -1,0 +1,7 @@
+---
+Name: omnipayextensions
+Before: betterbuttons/*
+---
+GridFieldDetailForm_ItemRequest:
+  extensions:
+    - PaymentItemRequestExtension
