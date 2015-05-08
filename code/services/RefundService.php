@@ -7,7 +7,7 @@ class RefundService extends PaymentService{
 	 * @return PaymentResponse encapsulated response info
 	 */
 	public function refund($data = array()) {
-		if ($this->payment->Status !== 'Captured') {
+		if (!$this->payment->canRefund()) {
 			return null; //could be handled better? send payment response?
 		}
 		if (!$this->payment->isInDB()) {
@@ -18,17 +18,37 @@ class RefundService extends PaymentService{
 			return null;
 		}
 
+		if (empty($data['amount'])) {
+			$data['amount'] = $this->payment->MoneyCurrency;
+		}
+
+		// If needed, find the transaction reference for the first capture that worked.
+		// Most payment gateways need this.
+		$firstPurchaseMessage = isset($data['transactionReference'])
+			? null // no need to look this up if it's already present
+			: PurchasedResponse::get()
+				->filter('PaymentID', $this->payment->ID)
+				->exclude('Reference', null)
+				->sort('Created')
+				->first();
+
 		$message = $this->createMessage('RefundRequest');
 		$message->write();
-		$request = $this->oGateway()->refund(array_merge(
+
+		$requestData = array_merge(
 			$data,
 			array(
-				'amount' => (float) $this->payment->MoneyAmount,
+				'currency' => $this->payment->MoneyCurrency,
 				'receipt' => (int) $data['receipt'],
+				'transactionReference' => $firstPurchaseMessage ? $firstPurchaseMessage->Reference : null,
 			)
-		));
+		);
+
+		$this->payment->extend('onBeforeRefund', $requestData);
+		$request = $this->oGateway()->refund($requestData);
 		$this->logToFile($request->getParameters(), 'RefundRequest_post');
 		$gatewayresponse = $this->createGatewayResponse();
+
 		try {
 			$response = $this->response = $request->send();
 			//update payment model
@@ -36,6 +56,8 @@ class RefundService extends PaymentService{
 				//successful payment
 				$this->createMessage('RefundedResponse', $response);
 				$this->payment->Status = 'Refunded';
+				$this->payment->RefundedCurrency = $this->payment->MoneyCurrency;
+				$this->payment->RefundedAmount = $requestData['amount'];
 				$gatewayresponse->setMessage('Payment refunded');
 				$this->payment->extend('onRefunded', $gatewayresponse);
 			} else {

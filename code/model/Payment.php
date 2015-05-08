@@ -1,10 +1,20 @@
 <?php
-
 /**
  * Payment DataObject
  *
  * This class is used for storing a payment amount, and it's status of being
  * paid or not, and the gateway used to make payment.
+ *
+ * @property string Gateway
+ * @property Money Money
+ * @property float MoneyAmount
+ * @property string MoneyCurrency
+ * @property Money Refunded
+ * @property float RefundedAmount
+ * @property string RefundedCurrency
+ * @property string Status
+ * @property string Identifier
+ * @method HasManyList Messages()
  *
  * @package payment
  */
@@ -13,6 +23,7 @@ final class Payment extends DataObject{
 	private static $db = array(
 		'Gateway' => 'Varchar(50)', //this is the omnipay 'short name'
 		'Money' => 'Money', //contains Amount and Currency
+		'Refunded' => 'Money',
 		'Status' => "Enum('Created,Authorized,Captured,Refunded,Void','Created')",
 		'Identifier' => 'Varchar'
 	);
@@ -42,11 +53,26 @@ final class Payment extends DataObject{
 
 	private static $default_sort = "\"Created\" DESC, \"ID\" DESC";
 
+	/**
+	 * @var bool - config option to enable/disable refunds in the admin
+	 */
+	private static $hide_refund_button = false;
+
+
 	public function getCMSFields() {
 		$fields = new FieldList(
 			TextField::create("MoneyValue", _t("Payment.MONEY", "Money"), $this->dbObject('Money')->Nice()),
 			TextField::create("GatewayTitle", _t("Payment.GATEWAY", "Gateway"))
 		);
+
+		if ($this->RefundedAmount > 0) {
+			$fields->insertAfter(
+				TextField::create('RefundedValue', _t("Payment.REFUNDED", 'Refunded'),
+					$this->dbObject('Refunded')->Nice()),
+				'MoneyValue'
+			);
+		}
+
 		$fields = $fields->makeReadonly();
 		$fields->push(
 			GridField::create("Messages", _t("Payment.MESSAGES", "Messages"), $this->Messages(),
@@ -58,6 +84,7 @@ final class Payment extends DataObject{
 
 		return $fields;
 	}
+
 
 	/**
 	 * Change search context to use a dropdown for list of gateways.
@@ -172,6 +199,20 @@ final class Payment extends DataObject{
 	 */
 	public function isCaptured() {
 		return $this->Status == 'Captured';
+	}
+
+	/**
+	 * @return boolean
+	 */
+	public function canRefund() {
+		return ($this->Status == 'Captured' || $this->Status == 'Refunded') && $this->getMaxRefundAmount() > 0;
+	}
+
+	/**
+	 * @return float
+	 */
+	public function getMaxRefundAmount() {
+		return $this->MoneyAmount - $this->RefundedAmount;
 	}
 
 	public function forTemplate() {
