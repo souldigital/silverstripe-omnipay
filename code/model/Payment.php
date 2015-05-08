@@ -9,9 +9,6 @@
  * @property Money Money
  * @property float MoneyAmount
  * @property string MoneyCurrency
- * @property Money Refunded
- * @property float RefundedAmount
- * @property string RefundedCurrency
  * @property string Status
  * @property string Identifier
  * @method SavedCreditCard SavedCreditCard()
@@ -24,7 +21,6 @@ final class Payment extends DataObject{
 	private static $db = array(
 		'Gateway' => 'Varchar(50)', //this is the omnipay 'short name'
 		'Money' => 'Money', //contains Amount and Currency
-		'Refunded' => 'Money',
 		'Status' => "Enum('Created,Authorized,Captured,Refunded,Void','Created')",
 		'Identifier' => 'Varchar'
 	);

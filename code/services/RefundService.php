@@ -53,11 +53,18 @@ class RefundService extends PaymentService{
 			$response = $this->response = $request->send();
 			//update payment model
 			if ($response->isSuccessful()) {
+				// if this was a partial refund, we need to create a
+				// duplicate payment with the remaining amount
+				if ($this->payment->MoneyAmount > $data['amount']) {
+					$newPayment = $this->payment->duplicate(false);
+					$newPayment->MoneyAmount = $this->payment->MoneyAmount - $data['amount'];
+					$newPayment->write();
+					$this->payment->MoneyAmount = $data['amount'];
+				}
+
 				//successful payment
 				$this->createMessage('RefundedResponse', $response);
 				$this->payment->Status = 'Refunded';
-				$this->payment->RefundedCurrency = $this->payment->MoneyCurrency;
-				$this->payment->RefundedAmount = $requestData['amount'];
 				$gatewayresponse->setMessage('Payment refunded');
 				$this->payment->extend('onRefunded', $gatewayresponse);
 			} else {
