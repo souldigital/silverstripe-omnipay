@@ -24,13 +24,15 @@ class RefundService extends PaymentService{
 
 		// If needed, find the transaction reference for the first capture that worked.
 		// Most payment gateways need this.
-		$firstPurchaseMessage = isset($data['transactionReference'])
-			? null // no need to look this up if it's already present
-			: PurchasedResponse::get()
-				->filter('PaymentID', $this->payment->ID)
-				->exclude('Reference', null)
-				->sort('Created')
-				->first();
+		$firstPurchaseMessage = PurchasedResponse::get()
+			->filter('PaymentID', $this->payment->ID)
+			->exclude('Reference', null)
+			->sort('Created')
+			->first();
+
+		if ($firstPurchaseMessage && empty($data['transactionReference'])) {
+			$data['transactionReference'] = $firstPurchaseMessage->Reference;
+		}
 
 		$message = $this->createMessage('RefundRequest');
 		$message->write();
@@ -40,7 +42,6 @@ class RefundService extends PaymentService{
 			array(
 				'currency' => $this->payment->MoneyCurrency,
 				'receipt' => (int) $data['receipt'],
-				'transactionReference' => $firstPurchaseMessage ? $firstPurchaseMessage->Reference : null,
 			)
 		);
 
@@ -55,11 +56,22 @@ class RefundService extends PaymentService{
 			if ($response->isSuccessful()) {
 				// if this was a partial refund, we need to create a
 				// duplicate payment with the remaining amount
+				SS_Log::log("refund complete: {$this->payment->MoneyAmount} vs {$data['amount']}", SS_Log::INFO);
 				if ($this->payment->MoneyAmount > $data['amount']) {
-					$newPayment = $this->payment->duplicate(false);
-					$newPayment->MoneyAmount = $this->payment->MoneyAmount - $data['amount'];
+					$newPayment = $this->payment->duplicate();
+					$newPayment->Created = date('Y-m-d H:i:s');
+					$newPayment->dbObject('Money')->setAmount($this->payment->MoneyAmount - $data['amount']);
 					$newPayment->write();
-					$this->payment->MoneyAmount = $data['amount'];
+					SS_Log::log("payment:".print_r($newPayment->toMap(),true), SS_Log::INFO);
+
+					if ($firstPurchaseMessage) {
+						$newMessage = $firstPurchaseMessage->duplicate(false);
+						$newMessage->PaymentID = $newPayment->ID;
+						$newMessage->write();
+					}
+
+					$this->payment->dbObject('Money')->setAmount($data['amount']);
+					SS_Log::log("payment:".print_r($this->payment->toMap(),true), SS_Log::INFO);
 				}
 
 				//successful payment
