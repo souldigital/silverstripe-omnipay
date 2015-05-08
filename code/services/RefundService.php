@@ -56,13 +56,11 @@ class RefundService extends PaymentService{
 			if ($response->isSuccessful()) {
 				// if this was a partial refund, we need to create a
 				// duplicate payment with the remaining amount
-				SS_Log::log("refund complete: {$this->payment->MoneyAmount} vs {$data['amount']}", SS_Log::INFO);
 				if ($this->payment->MoneyAmount > $data['amount']) {
 					$newPayment = $this->payment->duplicate();
 					$newPayment->Created = date('Y-m-d H:i:s');
 					$newPayment->dbObject('Money')->setAmount($this->payment->MoneyAmount - $data['amount']);
 					$newPayment->write();
-					SS_Log::log("payment:".print_r($newPayment->toMap(),true), SS_Log::INFO);
 
 					if ($firstPurchaseMessage) {
 						$newMessage = $firstPurchaseMessage->duplicate(false);
@@ -71,7 +69,6 @@ class RefundService extends PaymentService{
 					}
 
 					$this->payment->dbObject('Money')->setAmount($data['amount']);
-					SS_Log::log("payment:".print_r($this->payment->toMap(),true), SS_Log::INFO);
 				}
 
 				//successful payment
