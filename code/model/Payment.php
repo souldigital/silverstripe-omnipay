@@ -201,14 +201,14 @@ final class Payment extends DataObject{
 	 * @return boolean
 	 */
 	public function canRefund() {
-		return ($this->Status == 'Captured' || $this->Status == 'Refunded') && $this->getMaxRefundAmount() > 0;
+		return $this->Status == 'Captured' && $this->getMaxRefundAmount() > 0;
 	}
 
 	/**
 	 * @return float
 	 */
 	public function getMaxRefundAmount() {
-		return $this->MoneyAmount - $this->RefundedAmount;
+		return $this->MoneyAmount;
 	}
 
 	public function forTemplate() {
