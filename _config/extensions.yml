@@ -5,3 +5,7 @@ Before: betterbuttons/*
 GridFieldDetailForm_ItemRequest:
   extensions:
     - PaymentItemRequestExtension
+
+Member:
+  has_many:
+    CreditCards: SavedCreditCard
