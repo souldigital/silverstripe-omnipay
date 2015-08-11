@@ -81,7 +81,7 @@ class PaymentGatewayController extends Controller{
 
 	/**
 	 * Get the the payment according to the identifer given in the url
-	 * @return Payament the payment
+	 * @return Payment the payment
 	 */
 	private function getPayment() {
 		return Payment::get()

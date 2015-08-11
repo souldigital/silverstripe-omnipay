@@ -98,7 +98,7 @@ class PurchaseService extends PaymentService{
 
 	/**
 	 * Finalise this payment, after off-site external processing.
-	 * This is ususally only called by PaymentGatewayController.
+	 * This is usually only called by PaymentGatewayController.
 	 * @return PaymentResponse encapsulated response info
 	 */
 	public function completePurchase($data = array()) {
