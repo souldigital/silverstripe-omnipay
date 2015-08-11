@@ -1,3 +1,3 @@
 <?php
-class CreateCardRequest extends GatewayResponseMessage{
+class CreateCardRequest extends GatewayRequestMessage{
 }

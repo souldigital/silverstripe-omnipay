@@ -41,11 +41,12 @@ class PaymentGatewayController extends Controller{
 
 		//isolate the gateway request message containing success / failure urls
 		$message = $payment->Messages()
-			->filter("ClassName", array("PurchaseRequest","AuthorizeRequest"))
+			->filter("ClassName", array("PurchaseRequest","AuthorizeRequest","CreateCardRequest"))
 			->first();
 
-		$service = PurchaseService::create($payment);
-		
+		$service_class = ($message->ClassName == "CreateCardRequest")?"SavedCardService":"PurchaseService";
+		$service = $service_class::create($payment);
+
 		//redirect if payment is already a success
 		if ($payment->isComplete()) {
 			return $this->redirect($this->getSuccessUrl($message));
@@ -55,15 +56,22 @@ class PaymentGatewayController extends Controller{
 		$response = null;
 		switch ($this->request->param('Status')) {
 			case "complete":
-				$serviceResponse = $service->completePurchase();
+				if($service_class == "SavedCardService")
+					$serviceResponse = $service->completeCreateCard();
+				else
+					$serviceResponse = $service->completePurchase();
+
 				if($serviceResponse->isSuccessful()){
 					$response = $this->redirect($this->getSuccessUrl($message));
 				} else {
 					$response = $this->redirect($this->getFailureUrl($message));
 				}
-				break;
+			break;
 			case "notify":
-				$serviceResponse = $service->completePurchase();
+				if($service_class == "SavedCardService")
+					$serviceResponse = $service->completeCreateCard();
+				else
+					$serviceResponse = $service->completePurchase();
 				// Allow implementations where no redirect happens,
 				// since gateway failsafe callbacks might expect a 2xx HTTP response
 				$response = new SS_HTTPResponse('', 200);
