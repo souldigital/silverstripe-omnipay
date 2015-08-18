@@ -41,10 +41,10 @@ class PaymentGatewayController extends Controller{
 
 		//isolate the gateway request message containing success / failure urls
 		$message = $payment->Messages()
-			->filter("ClassName", array("PurchaseRequest","AuthorizeRequest","CreateCardRequest"))
+			->filter("ClassName", array("PurchaseRequest","AuthorizeRequest","CreateCardRequest","CreateCustomerRequest"))
 			->first();
 
-		$service_class = ($message->ClassName == "CreateCardRequest")?"SavedCardService":"PurchaseService";
+		$service_class = (in_array($message->ClassName, array("CreateCardRequest", "CreateCustomerRequest"))?"SavedCardService":"PurchaseService");
 		$service = $service_class::create($payment);
 
 		//redirect if payment is already a success
@@ -56,8 +56,10 @@ class PaymentGatewayController extends Controller{
 		$response = null;
 		switch ($this->request->param('Status')) {
 			case "complete":
-				if($service_class == "SavedCardService")
+				if($message->ClassName == "CreateCardRequest")
 					$serviceResponse = $service->completeCreateCard();
+				elseif($message->ClassName == "CreateCustomerRequest")
+					$serviceResponse = $service->completeCreateCustomer();
 				else
 					$serviceResponse = $service->completePurchase();
 
@@ -68,8 +70,10 @@ class PaymentGatewayController extends Controller{
 				}
 			break;
 			case "notify":
-				if($service_class == "SavedCardService")
+				if($message->ClassName == "CreateCardRequest")
 					$serviceResponse = $service->completeCreateCard();
+				elseif($message->ClassName == "CreateCustomerRequest")
+					$serviceResponse = $service->completeCreateCustomer();
 				else
 					$serviceResponse = $service->completePurchase();
 				// Allow implementations where no redirect happens,

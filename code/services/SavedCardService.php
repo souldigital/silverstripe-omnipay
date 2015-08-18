@@ -9,15 +9,24 @@ use Omnipay\Common\CreditCard;
 class SavedCardService extends PaymentService {
 
 	/**
-	 * Attempt to save a new credit card.
+	 * @param string $object The object type to create (Card|Customer)
+	 * @param array $data The data provided
 	 *
-	 * @param  array $data
-	 * @return \Omnipay\Common\Message\ResponseInterface omnipay's response class, specific to the chosen gateway.
+	 * Abstract method for creating objects
+	 *
+	 * @return GatewayResponse|null
+	 * @throws ValidationException
+	 * @throws null
 	 */
-	public function createCard($data = array()) {
+	private function __create($object, $data){
+		if(!in_array($object, array("Card", "Customer"))){
+			return null;
+		}
+
 		if ($this->payment->Status !== "Created") {
 			return null; //could be handled better? send payment response?
 		}
+
 		if (!$this->payment->isInDB()) {
 			$this->payment->write();
 		}
@@ -50,9 +59,9 @@ class SavedCardService extends PaymentService {
 			$gatewaydata['transactionId'] = $this->payment->Identifier;
 		}
 
-		$request = $this->oGateway()->createCard($gatewaydata);
+		$request = $this->oGateway()->{'create'.$object}($gatewaydata);
 
-		$message = $this->createMessage('CreateCardRequest', $request);
+		$message = $this->createMessage('Create'.$object.'Request', $request);
 		$message->SuccessURL = $this->getReturnUrl();
 		$message->FailureURL = $this->getCancelUrl();
 		$message->write();
@@ -64,25 +73,30 @@ class SavedCardService extends PaymentService {
 			//update payment model
 			if ($response->isSuccessful()) {
 				//successful card creation
-				$this->createMessage('CreateCardResponse', $response);
+				$this->createMessage('Create'.$object.'Response', $response);
 
 				// create the saved card
 				$card = new SavedCreditCard(array(
-					'CardReference'  => $response->getCardReference(),
 					'LastFourDigits' => substr($data['number'], -4),
 					'Name'           => $data['cardName'],
 					'UserID'         => Member::currentUserID(),
 				));
+
+				if($object == "Card"){
+					$card->CardReference  = $response->getCardReference();
+				}else{
+					$card->CustomerReference  = $response->getCustomerToken();
+				}
 
 				$card->write();
 
 				$this->payment->SavedCreditCardID = $card->ID;
 				$this->payment->Status = 'Captured'; // set payment status to captured so we know this payment has actually done something and we don't get stuck in a loop
 				$this->payment->write();
-				$gatewayresponse->setMessage("Card created successfully");
+				$gatewayresponse->setMessage($object." created successfully");
 			} elseif ($response->isRedirect()) {
 				// redirect to off-site payment gateway
-				$this->createMessage('CreateCardRedirectResponse', $response);
+				$this->createMessage('Create'.$object.'RedirectResponse', $response);
 				$this->payment->Status = 'Authorized';
 
 				// create the saved card - do this here (even without the actual card reference) to store the name + last four digits
@@ -99,13 +113,13 @@ class SavedCardService extends PaymentService {
 				$gatewayresponse->setMessage("Redirecting to gateway");
 			}  else {
 				//handle error
-				$this->createMessage('CreateCardError', $response);
+				$this->createMessage('Create'.$object.'Error', $response);
 				$gatewayresponse->setMessage(
 					"Error (".$response->getCode()."): ".$response->getMessage()
 				);
 			}
 		} catch (Omnipay\Common\Exception\OmnipayException $e) {
-			$this->createMessage('CreateCardError', $e);
+			$this->createMessage('Create'.$object.'Error', $e);
 			$gatewayresponse->setMessage($e->getMessage());
 		}
 
@@ -115,13 +129,7 @@ class SavedCardService extends PaymentService {
 		return $gatewayresponse;
 	}
 
-
-	/**
-	 * Finalise this card, after off-site external processing.
-	 * This is usually only called by PaymentGatewayController.
-	 * @return \Omnipay\Common\Message\ResponseInterface omnipay's response class, specific to the chosen gateway.
-	 */
-	public function completeCreateCard($data = array()) {
+	private function __complete($object, $data){
 		$gatewayresponse = $this->createGatewayResponse();
 
 		//set the client IP address, if not already set
@@ -133,11 +141,11 @@ class SavedCardService extends PaymentService {
 			'amount' => (float) $this->payment->MoneyAmount,
 			'currency' => $this->payment->MoneyCurrency
 		));
-		$this->payment->extend('onBeforeCompleteCreateCard', $gatewaydata);
+		$this->payment->extend('onBeforeCompleteCreate'.$object, $gatewaydata);
 
 		$gateway = $this->oGateway();
-		$request = (method_exists($gateway, 'completeCreateCard')?$gateway->completeCreateCard($gatewaydata):$gateway->createCard($gatewaydata));
-		$this->createMessage('CompleteCreateCardRequest', $request);
+		$request = (method_exists($gateway, 'completeCreate'.$object)?$gateway->{"completeCreate".$object}($gatewaydata):$gateway->{"create".$object}($gatewaydata));
+		$this->createMessage('CompleteCreate'.$object.'Request', $request);
 		$response = null;
 		$card = $this->payment->SavedCreditCard();
 		try {
@@ -145,26 +153,70 @@ class SavedCardService extends PaymentService {
 			$gatewayresponse->setOmnipayResponse($response);
 			if ($response->isSuccessful()) {
 				//successful card creation
-				$this->createMessage('CreateCardResponse', $response);
+				$this->createMessage('create'.$object.'Response', $response);
 
 				// update the saved card
-				$card->CardReference = $response->getCardReference();
+				if($object == "Card"){
+					$card->CardReference  = $response->getCardReference();
+				}else{
+					$card->CustomerReference  = $response->getCustomerToken();
+				}
+
 				$card->write();
 
 				$this->payment->SavedCreditCardID = $card->ID;
 				$this->payment->Status = 'Captured'; // set payment status to captured so we know this payment has actually done something and we don't get stuck in a loop
 				$this->payment->write();
-				$gatewayresponse->setMessage("Card created successfully");
+				$gatewayresponse->setMessage($object." created successfully");
 			} else {
-				$this->createMessage('CompleteCreateCardError', $response);
+				$this->createMessage('CompleteCreate'.$object.'Error', $response);
 				$card->delete();
 			}
 		} catch (Omnipay\Common\Exception\OmnipayException $e) {
-			$this->createMessage("CompleteCreateCardError", $e);
+			$this->createMessage("CompleteCreate'.$object.'Error", $e);
 			$card->delete();
 		}
 
 		return $gatewayresponse;
+	}
+
+	/**
+	 * Attempt to save a new credit card.
+	 *
+	 * @param  array $data
+	 * @return \Omnipay\Common\Message\ResponseInterface omnipay's response class, specific to the chosen gateway.
+	 */
+	public function createCard($data = array()) {
+		return $this->__create("Card", $data);
+	}
+
+	/**
+	 * Attempt to save a new customer.
+	 *
+	 * @param  array $data
+	 * @return \Omnipay\Common\Message\ResponseInterface omnipay's response class, specific to the chosen gateway.
+	 */
+	public function createCustomer($data = array()) {
+		return $this->__create("Customer", $data);
+	}
+
+
+	/**
+	 * Finalise this card, after off-site external processing.
+	 * This is usually only called by PaymentGatewayController.
+	 * @return \Omnipay\Common\Message\ResponseInterface omnipay's response class, specific to the chosen gateway.
+	 */
+	public function completeCreateCard($data = array()) {
+		return $this->__complete("Card", $data);
+	}
+
+	/**
+	 * Finalise this card, after off-site external processing.
+	 * This is usually only called by PaymentGatewayController.
+	 * @return \Omnipay\Common\Message\ResponseInterface omnipay's response class, specific to the chosen gateway.
+	 */
+	public function completeCreateCustomer($data = array()) {
+		return $this->__complete("Customer", $data);
 	}
 
 	public function updateCard(SavedCreditCard $card, $data = array()) {

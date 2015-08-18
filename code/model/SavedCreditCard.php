@@ -1,9 +1,10 @@
 <?php
 
 /**
- * Stores information about a saved credit card. Only
+ * Stores information about a saved credit card or customer. Only
  * used for gateways that support createCard.
  *
+ * @property string CustomerReference - returned from gateway
  * @property string CardReference - returned from gateway
  * @property string LastFourDigits - truncated credit card number
  * @property string Name - optional name of the card for user's use
@@ -16,6 +17,7 @@
 class SavedCreditCard extends DataObject {
 
     private static $db = array(
+        'CustomerReference' => 'Varchar(255)',
         'CardReference' => 'Varchar(255)',
         'LastFourDigits' => 'Varchar(10)',
         'Name' => 'Varchar(255)', // optional
